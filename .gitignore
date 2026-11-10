@@ -1,0 +1,14 @@
+# Ajouts : builds, secrets et sorties d'installeur
+installer/Output/
+node_modules/
+target/
+.env
+local.properties
+*.log
+__pycache__/
+.venv/
+.gradle/
+.kotlin/
+build/
+.claude/settings.local.json
+dist/
