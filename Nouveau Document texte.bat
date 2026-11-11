@@ -1,1 +1,0 @@
-pyinstaller --noconsole --onefile --icon=NetPulse.ico --name=NetPulse main.py

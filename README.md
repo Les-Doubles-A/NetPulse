@@ -2,140 +2,131 @@
 
 Dépôt GitHub : **https://github.com/Les-Doubles-A/NetPulse**
 
-Tableau de bord de surveillance et d'analyse du réseau local, construit avec
-`customtkinter`, `scapy`, `python-nmap` (optionnel) et `SQLite`.
+Tableau de bord de surveillance et d'analyse du réseau local pour Windows, écrit en
+**Rust** (interface `egui`/`eframe`, base `SQLite` embarquée). Un seul exécutable
+natif, sans Python, sans Npcap et sans droits administrateur.
 
-> ⚠️ **Usage responsable** : n'utilisez NetPulse que sur des réseaux que vous possédez
+> **Usage responsable** : n'utilisez NetPulse que sur des réseaux que vous possédez
 > ou que vous êtes explicitement autorisé(e) à auditer. Scanner un réseau tiers sans
-> autorisation peut être illégal selon votre juridiction (ex. en France : article
+> autorisation peut être illégal selon votre juridiction (en France : articles
 > 323-1 et suivants du Code pénal).
 
-## 📁 Structure du projet
-
-```
-NetPulse/
-├── main.py                  # Script principal de l'application
-├── requirements.txt         # Dépendances Python
-├── NetPulse.png              # Icône source (à fournir, 256x256 recommandé)
-├── NetPulse.ico              # Icône .ico (générée automatiquement si absente)
-└── netpulse_history.db       # Base SQLite (créée automatiquement au 1er lancement)
-```
-
-## 🔧 1. Installation des dépendances
-
-```bash
-pip install customtkinter pillow scapy python-nmap psutil pyinstaller
-```
-
-- `scapy` : scan ARP natif (le plus fiable pour découvrir les appareils).
-- `python-nmap` : **optionnel**, améliore la détection de service/version des ports
-  si le binaire **nmap** est également installé sur la machine
-  (https://nmap.org/download.html). En son absence, NetPulse bascule automatiquement
-  sur un scanner de ports interne basé sur les sockets Python (aucune dépendance
-  externe requise).
-- `psutil` : détection automatique du sous-réseau local.
-
-### Droits nécessaires pour le scan ARP
-
-Le scan ARP (via `scapy`) nécessite des privilèges élevés :
-- **Windows** : installez [Npcap](https://npcap.com/) et lancez l'application en
-  tant qu'administrateur.
-- **Linux/macOS** : lancez avec `sudo python3 main.py`.
-
-Si ces privilèges ne sont pas disponibles, NetPulse **bascule automatiquement**
-sur une méthode de repli (ping sweep + lecture de la table ARP du système), sans
-action requise de votre part.
-
-## ▶️ 2. Lancer l'application en développement
-
-```bash
-cd NetPulse
-python main.py
-```
-
-## 🖥️ 3. Fonctionnalités
-
-### Onglet "📡 Appareils"
-- Détection automatique du sous-réseau local (modifiable manuellement).
-- Bouton **Scanner le réseau** : scan ARP (ou repli ping sweep) pour lister les
-  appareils actifs.
-- Tableau : Adresse IP, Adresse MAC, Fabricant (résolu via la base OUI de `scapy`,
-  avec une table de repli intégrée), État (En ligne / Hors ligne), dernière détection.
-- Double-clic sur un appareil → bascule directement vers l'onglet Ports & Sécurité.
-
-### Onglet "🔒 Ports & Sécurité"
-- Sélection d'un appareil détecté + liste de ports personnalisable (par défaut :
-  21, 22, 23, 25, 53, 80, 110, 139, 143, 443, 445, 993, 995, 1723, 3306, 3389, 5900, 8080).
-- Scan via `python-nmap` (si disponible) avec détection de bannière/service, sinon
-  scanner socket interne multithreadé avec récupération de bannière.
-- **Score de sécurité** sur 100, avec pénalités renforcées pour les ports sensibles
-  ouverts (FTP, Telnet, NetBIOS, SMB, PPTP, RDP, VNC) et alertes détaillées.
-
-### Onglet "🕘 Historique"
-- Historique local (SQLite) de tous les événements : nouveaux appareils, appareils
-  hors ligne, résultats de scans de ports, scores de sécurité.
-- Boutons **Actualiser** et **Vider l'historique**.
-
-### Thème
-- `ctk.set_appearance_mode("System")` : suit automatiquement le thème clair/sombre
-  de l'OS. Un sélecteur manuel (System/Light/Dark) est aussi disponible dans la
-  barre de statut.
-
-## 📦 4. Compilation en exécutable `.exe` (Windows)
-
-Depuis le dossier `NetPulse/` (contenant `main.py` et `NetPulse.ico`) :
-
-```bash
-pyinstaller --noconsole --onefile --icon=NetPulse.ico --name=NetPulse main.py
-```
-
-L'exécutable final `NetPulse.exe` sera généré dans `dist/`.
-
-> 💡 Pour bénéficier du scan ARP complet une fois compilé, exécutez `NetPulse.exe`
-> en tant qu'administrateur (clic droit → « Exécuter en tant qu'administrateur »),
-> et assurez-vous que [Npcap](https://npcap.com/) est installé sur la machine cible.
-
-### Détail des options PyInstaller
-| Option           | Rôle                                                  |
-|-------------------|--------------------------------------------------------|
-| `--noconsole`     | Masque la console (application purement graphique).    |
-| `--onefile`       | Génère un unique fichier `.exe` autonome.               |
-| `--icon=...`      | Intègre l'icône `NetPulse.ico` à l'exécutable.          |
-| `--name=NetPulse` | Nom du fichier exécutable final.                        |
-
-### ⚠️ Remarque importante pour PyInstaller + scapy
-`scapy` charge dynamiquement certains modules. Si l'exécutable compilé ne
-détecte aucun appareil en scan ARP (alors que cela fonctionne en mode script),
-ajoutez les imports cachés suivants à la commande :
-
-```bash
-pyinstaller --noconsole --onefile --icon=NetPulse.ico --name=NetPulse ^
-  --hidden-import=scapy.layers.all ^
-  --hidden-import=scapy.arch.windows ^
-  main.py
-```//
-(Sous Windows, `^` permet de poursuivre la commande sur plusieurs lignes ;
-utilisez `\` sous Linux/macOS.)
-
-## ⚠️ Remarques
-
-- La base SQLite `netpulse_history.db` est créée automatiquement dans le dossier
-  de l'application au premier lancement.
-- Le scan de ports interne (repli sans `nmap`) est volontairement limité à des
-  sondes TCP simples (connexion + lecture de bannière) : il ne réalise ni
-  exploitation de vulnérabilité, ni test d'intrusion actif.
-- Testé sous Windows, Linux et macOS (le scan ARP nécessite des privilèges
-  administrateur/root sur toutes les plateformes).
-
-<!-- installeur-release -->
 ## Installation
 
-Téléchargez **`NetPulse-Setup-1.0.0.exe`** depuis la [dernière release](https://github.com/Les-Doubles-A/NetPulse/releases/latest), puis lancez-le.
+Téléchargez **`NetPulse-Setup-2.0.0.exe`** depuis la [dernière release](https://github.com/Les-Doubles-A/NetPulse/releases/latest), puis lancez-le.
 
-L'installation se fait pour l'utilisateur courant, sans droits administrateur (par défaut dans `%LOCALAPPDATA%\Programs\NetPulse`), avec un raccourci dans le menu Démarrer et une désinstallation depuis les Paramètres Windows.
+- Installation pour l'utilisateur courant, sans droits administrateur (par défaut dans `%LOCALAPPDATA%\Programs\NetPulse`).
+- Raccourci dans le menu Démarrer, icône de bureau et lancement à l'ouverture de session en option.
+- Désinstallation depuis les Paramètres Windows. L'installeur met à jour une version 1.x existante.
 
 L'installeur n'est pas signé : si Windows SmartScreen l'affiche, cliquez sur « Informations complémentaires » puis « Exécuter quand même ».
 
-### Recréer l'installeur
+## Fonctionnalités
 
-Compiler l'application (`pyinstaller NetPulse.spec`), puis lancer [Inno Setup 6](https://jrsoftware.org/isinfo.php) : `iscc installer\NetPulse.iss`. Le setup est créé dans `installer\Output\`.
+### Tableau de bord
+- Appareils en ligne, appareils non approuvés, latence de la passerelle et d'Internet, IP locale et publique, score de sécurité moyen.
+- Graphiques en temps réel de la latence (passerelle + cibles configurables) et du trafic réseau total.
+- Répartition des appareils par type et derniers événements.
+
+### Appareils
+- Découverte du réseau sans privilèges : ICMP natif (`IcmpSendEcho`), résolution ARP (`SendARP`) qui détecte aussi les appareils qui ignorent le ping, et sonde TCP complémentaire.
+- Cibles flexibles : `192.168.1.0/24`, `192.168.1.10-50`, `10.0.0.1-10.0.0.40`, listes séparées par des virgules (jusqu'à 65 536 adresses).
+- Fabricant via la base IEEE complète embarquée (plus de 40 000 préfixes, mise à jour en un clic), détection des adresses MAC privées (aléatoires).
+- Nom d'hôte par DNS inverse et NetBIOS, type d'appareil deviné (box, smartphone, imprimante, NAS, caméra, IoT, console, machine virtuelle...).
+- Nom personnalisé, notes, type, statut « approuvé » et favoris pour chaque appareil, conservés en base.
+- Tri, recherche, filtres (en ligne, hors ligne, non approuvés, favoris), export CSV et JSON.
+- Panneau de détail : scan de ports, ping, traceroute, Wake-on-LAN, ouverture HTTP/HTTPS, copie IP/MAC, historique de l'appareil.
+- Alertes : nouvel appareil, appareil hors ligne, retour en ligne, changement d'adresse MAC (réattribution ou usurpation ARP possible), avec notifications Windows.
+- Analyse automatique périodique.
+
+### Ports et sécurité
+- Scanner TCP multithreadé (jusqu'à 1000 connexions simultanées) sur une IP ou un nom d'hôte, de quelques ports à la plage complète 1-65535.
+- Présélections : courants, web, bases de données, accès distant, partage de fichiers, IoT/multimédia, 1-1024, 1-10000, tous.
+- Récupération de bannières (en-tête `Server` HTTP, SSH, FTP, SMTP...).
+- Score de sécurité sur 100 avec note A à F, constats classés par gravité (critique, élevé, moyen, faible) et recommandations : Telnet, SMB, RDP, VNC, bases de données exposées, API Docker, ADB, Redis, MongoDB, MQTT, RTSP, versions obsolètes détectées dans les bannières, interface web sans HTTPS, surface d'attaque excessive...
+- Évolution du score dans le temps, rapport HTML autonome et export JSON.
+
+### Outils
+- **Ping continu** avec graphique, perte, min/moy/max et gigue.
+- **Traceroute** ICMP avec noms d'hôtes.
+- **DNS** : résolution directe (A/AAAA) et inverse (PTR).
+- **Wake-on-LAN** vers un appareil connu ou une adresse MAC.
+- **IP publique** : fournisseur, localisation, fuseau horaire (via ipinfo.io), lien vers la carte.
+- **Test de débit** descendant/montant et latence (serveurs Cloudflare).
+- **Vérification HTTP** : code, temps de réponse, taille, en-têtes, contrôle des en-têtes de sécurité.
+- **Calculateur de sous-réseau** : masque, wildcard, diffusion, plage d'hôtes, classe, type d'adresse, binaire.
+- **Recherche de fabricant** à partir d'une adresse MAC.
+
+### Connexions
+- Toutes les sockets TCP/UDP IPv4 de la machine (équivalent de `netstat -ano`) avec le processus propriétaire, filtres et actualisation automatique.
+
+### Interfaces et trafic
+- Interfaces réseau avec adresses, MAC, MTU, volumes reçus/envoyés et débit instantané, graphique du trafic.
+
+### Historique
+- Journal SQLite de tous les événements (scans, nouveaux appareils, coupures, rétablissements, tests de débit...), recherche, filtre par type, export CSV.
+- Surveillance de la connexion : coupure signalée après 3 échecs consécutifs vers une cible, puis rétablissement.
+
+### Paramètres
+- Thème système/clair/sombre et zoom, délais et parallélisme des scans, ports par défaut, analyse automatique, notifications, cibles de latence.
+- Ouverture du dossier de données, sauvegarde de la base, mise à jour de la base des fabricants.
+
+## Ligne de commande
+
+Le même exécutable fonctionne en ligne de commande :
+
+```
+NetPulse.exe scan [cible] [--json]     Découvre les appareils
+NetPulse.exe ports <hôte> [ports] [--json]
+NetPulse.exe ping <hôte> [nombre]
+NetPulse.exe trace <hôte>
+NetPulse.exe dns <nom|ip>
+NetPulse.exe wol <mac>
+NetPulse.exe ip                         IP publique
+NetPulse.exe interfaces
+NetPulse.exe subnet <cidr>
+NetPulse.exe --help
+```
+
+## Données
+
+Tout est stocké localement dans `%LOCALAPPDATA%\NetPulse` :
+- `netpulse.db` : appareils, événements, scans de ports, scores, latences ;
+- `settings.json` : paramètres ;
+- `oui.txt` : base des fabricants mise à jour (facultatif).
+
+Seules les fonctions IP publique (ipinfo.io), test de débit (speed.cloudflare.com) et mise à jour des fabricants (standards-oui.ieee.org) contactent Internet, et uniquement à votre demande.
+
+## Compiler depuis les sources
+
+Prérequis : [Rust](https://rustup.rs/) (toolchain MSVC) et, pour l'installeur, [Inno Setup 6](https://jrsoftware.org/isinfo.php).
+
+```
+cargo build --release            # target\release\NetPulse.exe
+iscc installer\NetPulse.iss      # installer\Output\NetPulse-Setup-2.0.0.exe
+```
+
+## Structure
+
+```
+src/
+  main.rs        point d'entrée (interface graphique ou ligne de commande)
+  app.rs         état de l'application, tâches de fond, logique
+  views.rs       interface egui (onglets)
+  discovery.rs   découverte des appareils, NetBIOS, type d'appareil
+  ports.rs       scanner de ports, bannières, rapport HTML
+  security.rs    règles d'analyse de sécurité
+  tools.rs       ping, traceroute, DNS, WoL, IP publique, débit, HTTP, sous-réseau
+  platform.rs    API Windows (ICMP, ARP, routes, tables TCP/UDP)
+  storage.rs     paramètres et base SQLite
+  oui.rs         base des fabricants IEEE
+  cli.rs         ligne de commande
+assets/oui.txt   base IEEE embarquée
+installer/       script Inno Setup
+```
+
+## Limites
+
+- Les tables de connexions et la découverte native ciblent IPv4.
+- Le scan de ports effectue uniquement des connexions TCP complètes et la lecture de bannières : aucune exploitation ni test d'intrusion actif.
+- Le type d'appareil est une estimation fondée sur le fabricant, le nom d'hôte et les ports ouverts.
